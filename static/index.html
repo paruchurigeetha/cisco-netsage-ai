@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NetSage AI - Cisco Troubleshooter Helper</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/static/styles.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <aside class="app-sidebar">
+            <div class="brand">
+                <i class="fa-solid fa-network-wired logo-icon"></i>
+                <div class="brand-text">
+                    <h1>NetSage AI</h1>
+                    <span>Cisco Lab Troubleshooter</span>
+                </div>
+            </div>
+            
+            <nav class="nav-menu">
+                <button class="nav-item active" data-tab="dashboard">
+                    <i class="fa-solid fa-chart-line"></i> Dashboard Overview
+                </button>
+                <button class="nav-item" data-tab="workspace">
+                    <i class="fa-solid fa-laptop-code"></i> Diagnostics Lab
+                </button>
+                <button class="nav-item" data-tab="responsible-log">
+                    <i class="fa-solid fa-shield-halved"></i> Responsible AI Log
+                </button>
+                <button class="nav-item" data-tab="prompt-lib">
+                    <i class="fa-solid fa-book"></i> Prompt Library
+                </button>
+            </nav>
+
+            <div class="api-key-panel">
+                <h3>Gemini API Key</h3>
+                <div class="input-group">
+                    <i class="fa-solid fa-key"></i>
+                    <input type="password" id="gemini-key" placeholder="Enter API Key...">
+                </div>
+                <p class="key-note">Leave empty to use cached offline diagnoses.</p>
+            </div>
+
+            <div class="sidebar-footer">
+                <p>Cisco Internship Submission</p>
+                <p class="version">v1.2.0 • Human-in-the-Loop</p>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="app-content">
+            <!-- Header -->
+            <header class="content-header">
+                <div class="header-title">
+                    <h2 id="tab-title">Dashboard Overview</h2>
+                    <p id="tab-subtitle">Real-time metrics, diagnostics health, and human-in-the-loop review statistics.</p>
+                </div>
+                <div class="header-actions">
+                    <a href="/download/dashboard" class="btn btn-primary" id="btn-export-excel">
+                        <i class="fa-solid fa-file-excel"></i> Export Excel Dashboard
+                    </a>
+                </div>
+            </header>
+
+            <!-- Tab Content: Dashboard -->
+            <section class="tab-panel active" id="tab-dashboard">
+                <!-- Metrics Grid -->
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-icon primary"><i class="fa-solid fa-folder-open"></i></div>
+                        <div class="metric-info">
+                            <h4 id="metric-total-cases">30</h4>
+                            <span>Total Lab Cases</span>
+                        </div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-icon success"><i class="fa-solid fa-handshake"></i></div>
+                        <div class="metric-info">
+                            <h4 id="metric-agreement-rate">83.3%</h4>
+                            <span>AI-Human Agreement</span>
+                        </div>
+                    </div>
+                    <div class="metric-card font-glow">
+                        <div class="metric-icon warning"><i class="fa-solid fa-user-pen"></i></div>
+                        <div class="metric-info">
+                            <h4 id="metric-corrected-count">5</h4>
+                            <span>Responsible AI Corrections</span>
+                        </div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-icon info"><i class="fa-solid fa-circle-check"></i></div>
+                        <div class="metric-info">
+                            <h4 id="metric-reviewed-count">30/30</h4>
+                            <span>Cases Reviewed</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts Layout -->
+                <div class="dashboard-row grid-2">
+                    <div class="chart-container card">
+                        <h3>AI vs. Human Review Status</h3>
+                        <div class="chart-wrapper">
+                            <canvas id="chart-agreement"></canvas>
+                        </div>
+                    </div>
+                    <div class="chart-container card">
+                        <h3>Cases by Concept Domain</h3>
+                        <div class="chart-wrapper">
+                            <canvas id="chart-concepts"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="dashboard-row grid-3">
+                    <div class="chart-container card span-2">
+                        <h3>OSI Layer Breakdown</h3>
+                        <div class="chart-wrapper">
+                            <canvas id="chart-osi"></canvas>
+                        </div>
+                    </div>
+                    <div class="chart-container card">
+                        <h3>Severity Distribution</h3>
+                        <div class="chart-wrapper">
+                            <canvas id="chart-severity"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Responsible AI Corrections Panel -->
+                <div class="card responsible-summary-card">
+                    <div class="card-header">
+                        <h3><i class="fa-solid fa-shield-halved"></i> Active Responsible AI Corrections (Human Corrections)</h3>
+                        <span class="badge badge-warning">5 Flagged Anomalies</span>
+                    </div>
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Concept</th>
+                                    <th>OSI Layer</th>
+                                    <th>AI Initial Error</th>
+                                    <th>Human Resolution</th>
+                                    <th>Review State</th>
+                                </tr>
+                            </thead>
+                            <tbody id="responsible-summary-body">
+                                <!-- Pre-populated by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Tab Content: Workspace -->
+            <section class="tab-panel" id="tab-workspace">
+                <div class="workspace-layout">
+                    <!-- Left Column: Case Navigator -->
+                    <div class="case-sidebar card">
+                        <div class="case-sidebar-header">
+                            <div class="search-box">
+                                <i class="fa-solid fa-magnifying-glass"></i>
+                                <input type="text" id="case-search" placeholder="Search symptoms...">
+                            </div>
+                            <div class="filter-box">
+                                <select id="filter-concept">
+                                    <option value="">All Concepts</option>
+                                    <option value="VLAN">VLAN</option>
+                                    <option value="Gateway">Gateway</option>
+                                    <option value="DHCP">DHCP</option>
+                                    <option value="DNS">DNS</option>
+                                    <option value="Routing">Routing</option>
+                                    <option value="ACL">ACL</option>
+                                    <option value="NAT">NAT</option>
+                                    <option value="Wireless">Wireless</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="case-list" id="case-list-container">
+                            <!-- Populated dynamically by JS -->
+                        </div>
+                    </div>
+
+                    <!-- Right Column: Case Details and Actions -->
+                    <div class="workspace-main">
+                        <!-- Active Case Welcome / Empty State -->
+                        <div class="empty-workspace" id="empty-case-state">
+                            <i class="fa-solid fa-network-wired empty-icon"></i>
+                            <h3>Select a Troubleshooting Case</h3>
+                            <p>Choose a network case from the left panel to inspect configurations, execute rules, generate AI diagnostics, and perform human reviews.</p>
+                        </div>
+
+                        <!-- Active Case Console -->
+                        <div class="case-console-wrapper hidden" id="active-case-console">
+                            <!-- Case Info Header -->
+                            <div class="case-info-header card">
+                                <div class="case-meta">
+                                    <span class="case-id-badge" id="active-case-id">Case #01</span>
+                                    <span class="badge" id="active-case-concept">VLAN</span>
+                                    <span class="badge" id="active-case-osi">L2</span>
+                                    <span class="badge" id="active-case-severity">High</span>
+                                </div>
+                                <h3 id="active-case-symptom">PC1 cannot ping PC2 in VLAN 10 across switches.</h3>
+                            </div>
+
+                            <!-- Network Config and Evidence Panel -->
+                            <div class="grid-2">
+                                <!-- Topology Note -->
+                                <div class="card terminal-card">
+                                    <div class="card-header">
+                                        <h4><i class="fa-solid fa-map"></i> Topology Notes</h4>
+                                    </div>
+                                    <div class="terminal-body" id="active-case-topology">
+                                        PC1 (192.168.10.10) -> SwitchA...
+                                    </div>
+                                </div>
+
+                                <!-- Show Commands -->
+                                <div class="card terminal-card">
+                                    <div class="card-header">
+                                        <h4><i class="fa-solid fa-terminal"></i> Cisco CLI Show Output</h4>
+                                        <button class="btn btn-small" id="btn-copy-cli"><i class="fa-solid fa-copy"></i> Copy</button>
+                                    </div>
+                                    <pre class="terminal-body cisco-cli" id="active-case-outputs">
+SwitchA# show interfaces trunk...
+                                    </pre>
+                                </div>
+                            </div>
+
+                            <!-- Diagnostic Trigger Buttons -->
+                            <div class="action-bar">
+                                <button class="btn btn-secondary" id="btn-run-rule"><i class="fa-solid fa-microchip"></i> Run Python Rule Checker</button>
+                                <button class="btn btn-primary" id="btn-run-ai"><i class="fa-solid fa-brain"></i> Diagnose with NetSage AI</button>
+                            </div>
+
+                            <!-- Rule Checker Output Panel -->
+                            <div class="card output-card hidden" id="rule-checker-panel">
+                                <div class="card-header">
+                                    <h4><i class="fa-solid fa-microchip"></i> Deterministic Rule Checker Results</h4>
+                                    <span class="status-indicator" id="rule-status"><i class="fa-solid fa-circle-check"></i> Clean</span>
+                                </div>
+                                <div class="output-content" id="rule-output-content">
+                                    <!-- Rules findings will appear here -->
+                                </div>
+                            </div>
+
+                            <!-- AI Agent Diagnosis Panel -->
+                            <div class="card output-card hidden" id="ai-diagnosis-panel">
+                                <div class="card-header">
+                                    <h4><i class="fa-solid fa-brain"></i> NetSage AI Diagnosis Output</h4>
+                                    <div class="ai-header-meta">
+                                        <span class="badge" id="ai-output-simulated">Cached Output</span>
+                                        <span class="confidence-badge" id="ai-output-confidence">Confidence: High</span>
+                                    </div>
+                                </div>
+                                <div class="output-content">
+                                    <div class="ai-grid">
+                                        <div class="ai-field full-width">
+                                            <h5>Root Cause Analysis</h5>
+                                            <p id="ai-root-cause">Detecting...</p>
+                                        </div>
+                                        <div class="ai-field">
+                                            <h5>OSI Layer Classification</h5>
+                                            <p id="ai-osi-layer">L2</p>
+                                        </div>
+                                        <div class="ai-field">
+                                            <h5>Next Step Commands</h5>
+                                            <p id="ai-next-command">show interfaces trunk</p>
+                                        </div>
+                                        <div class="ai-field full-width">
+                                            <h5>Evidence Reference</h5>
+                                            <blockquote id="ai-evidence">"Native vlan mismatch on Fa0/24"</blockquote>
+                                        </div>
+                                        <div class="ai-field full-width">
+                                            <h5>Fix Steps & CLI Configuration</h5>
+                                            <pre class="cli-fix" id="ai-fix-steps">configure terminal...</pre>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Human Review Panel -->
+                            <div class="card review-panel-card">
+                                <div class="card-header">
+                                    <h4><i class="fa-solid fa-user-shield"></i> Human Review Oversight & Verdict</h4>
+                                    <span class="badge" id="review-current-status">Pending Review</span>
+                                </div>
+                                <div class="review-form">
+                                    <div class="verdict-buttons">
+                                        <label class="verdict-btn verdict-accept">
+                                            <input type="radio" name="verdict" value="Accepted" id="verdict-accept-radio">
+                                            <div class="verdict-btn-content">
+                                                <i class="fa-solid fa-circle-check"></i>
+                                                <span>Accept Diagnosis</span>
+                                            </div>
+                                        </label>
+                                        <label class="verdict-btn verdict-edit">
+                                            <input type="radio" name="verdict" value="Edited" id="verdict-edit-radio">
+                                            <div class="verdict-btn-content">
+                                                <i class="fa-solid fa-user-pen"></i>
+                                                <span>Edit & Accept</span>
+                                            </div>
+                                        </label>
+                                        <label class="verdict-btn verdict-reject">
+                                            <input type="radio" name="verdict" value="Rejected" id="verdict-reject-radio">
+                                            <div class="verdict-btn-content">
+                                                <i class="fa-solid fa-circle-xmark"></i>
+                                                <span>Reject Diagnosis</span>
+                                            </div>
+                                        </label>
+                                    </div>
+
+                                    <!-- Editable Fields (only active when 'Edit' is selected) -->
+                                    <div class="editable-fields-panel hidden" id="human-editable-fields">
+                                        <h5>Modify AI Output Fields</h5>
+                                        <div class="form-group">
+                                            <label>Corrected Root Cause</label>
+                                            <textarea id="edit-root-cause" rows="2"></textarea>
+                                        </div>
+                                        <div class="form-row">
+                                            <div class="form-group">
+                                                <label>OSI Layer</label>
+                                                <select id="edit-osi-layer">
+                                                    <option value="L1">L1 - Physical</option>
+                                                    <option value="L2">L2 - Data Link</option>
+                                                    <option value="L3">L3 - Network</option>
+                                                    <option value="L4">L4 - Transport</option>
+                                                    <option value="L7">L7 - Application</option>
+                                                </select>
+                                            </div>
+                                            <div class="form-group">
+                                                <label>Confidence Level</label>
+                                                <select id="edit-confidence">
+                                                    <option value="High">High</option>
+                                                    <option value="Medium">Medium</option>
+                                                    <option value="Low">Low</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Corrected Fix Steps</label>
+                                            <textarea id="edit-fix-steps" rows="3" class="code-font"></textarea>
+                                        </div>
+                                    </div>
+
+                                    <!-- Review Notes -->
+                                    <div class="form-group margin-top-2">
+                                        <label for="human-notes">Human Reviewer / Verification Notes</label>
+                                        <textarea id="human-notes" rows="2" placeholder="Describe the verification results, explanation of changes, or correction notes..."></textarea>
+                                    </div>
+
+                                    <button class="btn btn-primary" id="btn-submit-review">Submit Verification Verdict</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Tab Content: Responsible AI Log -->
+            <section class="tab-panel" id="tab-responsible-log">
+                <div class="card markdown-view">
+                    <div class="markdown-header">
+                        <h2>Responsible AI & Human-in-the-Loop Oversight Report</h2>
+                        <p>This report documents the cases where AI made erroneous diagnoses and highlights the critical safety role of human verification in computer networks.</p>
+                    </div>
+                    <div class="markdown-content" id="responsible-markdown-content">
+                        <!-- Loaded dynamically or filled in by script -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- Tab Content: Prompt Library -->
+            <section class="tab-panel" id="tab-prompt-lib">
+                <div class="card markdown-view">
+                    <div class="markdown-header">
+                        <h2>NetSage AI Prompt Library</h2>
+                        <p>Structured prompts designed to align the diagnostic engine's output schema and enforce evidence-backed network analysis.</p>
+                    </div>
+                    <pre class="prompt-display-block" id="prompt-file-content">
+                    </pre>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="toast hidden">
+        <i class="fa-solid fa-circle-check toast-icon"></i>
+        <span id="toast-message">Verification Submitted!</span>
+    </div>
+
+    <!-- Custom App JS -->
+    <script src="/static/app.js"></script>
+</body>
+</html>

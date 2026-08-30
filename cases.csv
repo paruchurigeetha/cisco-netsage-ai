@@ -1,0 +1,297 @@
+id,symptom,topology,show_outputs,expected_fault,osi_layer,concept,severity,next_command,fix_steps
+1,PC1 in VLAN 10 cannot ping PC2 in VLAN 10 connected to another switch. Pings time out.,"PC1 (192.168.10.10/24) -> SwitchA (Fa0/1 in VLAN 10), SwitchA (Fa0/24) -> SwitchB (Fa0/24), SwitchB (Fa0/1 in VLAN 10) -> PC2 (192.168.10.20/24).","SwitchA# show interfaces trunk
+Port        Mode         Encapsulation  Status        Native vlan
+Fa0/24      on           802.1q         trunking      10
+
+SwitchB# show interfaces trunk
+Port        Mode         Encapsulation  Status        Native vlan
+Fa0/24      on           802.1q         trunking      20
+",Mismatched Native VLAN on trunk link between SwitchA and SwitchB (Native VLAN 10 vs Native VLAN 20). This causes VLAN leaking and drop of tagged/untagged traffic.,L2,VLAN,High,show interfaces trunk,"Configure Native VLAN 10 on SwitchB's Fa0/24: enter interface configuration mode, type 'switchport trunk native vlan 10'."
+2,PC1 connected to SwitchA Fa0/1 cannot reach any device on VLAN 10. Port light is green but IP configuration fails.,PC1 (192.168.10.15/24) -> SwitchA (Fa0/1 in VLAN 10). Default Gateway is Router (192.168.10.1).,"SwitchA# show vlan brief
+VLAN Name                             Status    Ports
+---- -------------------------------- --------- -------------------------------
+1    default                          active    Fa0/2, Fa0/3, Fa0/4, Fa0/24
+100  VLAN0100                         active
+
+SwitchA# show interfaces Fa0/1 switchport
+Name: Fa0/1
+Switchport: Enabled
+Administrative Mode: static access
+Operational Mode: static access
+Administrative Access VLAN: 10 (Inactive)
+Operational Access VLAN: 10 (Inactive)
+","VLAN 10 is configured on the access interface Fa0/1, but VLAN 10 does not exist in the switch's VLAN database (VLAN is inactive).",L2,VLAN,High,show vlan brief,Create and activate VLAN 10 on SwitchA: 'vlan 10' then 'name VLAN10' in global configuration mode.
+3,"The trunk link between SwitchA and SwitchB is down, and VLANs are not communicating between them.",SwitchA (Fa0/24) connected to SwitchB (Fa0/24). Both should be trunking.,"SwitchA# show interfaces Fa0/24 switchport
+Name: Fa0/24
+Administrative Mode: trunk
+Operational Mode: trunk
+
+SwitchB# show interfaces Fa0/24 switchport
+Name: Fa0/24
+Administrative Mode: static access
+Operational Mode: static access
+Administrative Access VLAN: 1 (default)
+",Switchport mode mismatch on the link connecting SwitchA and SwitchB. SwitchA is set to 'trunk' while SwitchB is configured as 'static access'.,L2,VLAN,Medium,show interfaces switchport,Change SwitchB's Fa0/24 mode to trunk: enter 'interface Fa0/24' and type 'switchport mode trunk'.
+4,PC1 has static IP but cannot ping default gateway or access any resource outside its local subnet.,PC1 (192.168.1.50/24) -> Switch -> Router G0/0 (192.168.1.1/24).,"PC1> ipconfig
+FastEthernet0 Connection:
+   IP Address. . . . . . . . . . . : 192.168.1.50
+   Subnet Mask . . . . . . . . . . : 255.255.255.0
+   Default Gateway . . . . . . . . : 192.168.2.1
+
+Router# show ip interface brief
+Interface              IP-Address      OK? Method Status                Protocol
+GigabitEthernet0/0     192.168.1.1     YES manual up                    up
+","Default gateway IP mismatch. The default gateway on PC1 is set to 192.168.2.1, but the Router interface's actual IP is 192.168.1.1.",L3,Gateway,High,ipconfig on PC1 and show ip interface brief on Router,Change the default gateway configuration on PC1 to 192.168.1.1.
+5,All hosts in VLAN 10 fail to ping their default gateway and cannot access the Internet.,VLAN 10 hosts (192.168.10.0/24) -> SwitchA -> Router G0/0.10 (192.168.10.1) router-on-a-stick.,"Router# show ip interface brief
+Interface              IP-Address      OK? Method Status                Protocol
+GigabitEthernet0/0     unassigned      YES unset  up                    up
+GigabitEthernet0/0.10  192.168.10.1    YES manual administratively down down
+GigabitEthernet0/0.20  192.168.20.1    YES manual up                    up
+",Router subinterface GigabitEthernet0/0.10 is administratively down (not enabled with 'no shutdown').,L1,Gateway,High,show ip interface brief,"Enable subinterface G0/0.10 on Router: interface GigabitEthernet0/0.10, no shutdown."
+6,PC1 on VLAN 10 is configured to receive IP via DHCP but gets a 169.254.x.x autoconfiguration IP.,PC1 (VLAN 10) -> Switch -> Router (G0/0.10 is 192.168.10.1) -> DHCP Server (10.0.0.5) in Management subnet.,"PC1> ipconfig
+FastEthernet0 Connection:
+   IP Address. . . . . . . . . . . : 169.254.22.45
+   Subnet Mask . . . . . . . . . . : 255.255.0.0
+   Default Gateway . . . . . . . . : 0.0.0.0
+
+Router# show running-config interface gigabitethernet 0/0.10
+Building configuration...
+
+Current configuration : 110 bytes
+!
+interface GigabitEthernet0/0.10
+ encapsulation dot1Q 10
+ ip address 192.168.10.1 255.255.255.0
+end
+",Missing DHCP helper address on the Router's VLAN 10 gateway interface. DHCP broadcast packets cannot traverse subnets without 'ip helper-address'.,L3,DHCP,High,show running-config interface gigabitethernet 0/0.10,Add DHCP helper address: 'ip helper-address 10.0.0.5' under Router interface GigabitEthernet0/0.10.
+7,DHCP clients on VLAN 10 receive IP addresses but cannot communicate with their gateway or external networks.,Clients (VLAN 10) -> Router subinterface G0/0.10 (192.168.10.1/24) running DHCP server.,"PC1> ipconfig
+   IP Address. . . . . . . . . . . : 192.168.100.5
+   Subnet Mask . . . . . . . . . . : 255.255.255.0
+   Default Gateway . . . . . . . . : 192.168.10.1
+
+Router# show running-config
+ip dhcp pool VLAN10_POOL
+ network 192.168.100.0 255.255.255.0
+ default-router 192.168.10.1
+!
+interface GigabitEthernet0/0.10
+ encapsulation dot1Q 10
+ ip address 192.168.10.1 255.255.255.0
+","DHCP pool network subnet conflict. The DHCP pool is configured for network 192.168.100.0/24, but the gateway router IP is 192.168.10.1 (not in the pool's network subnet).",L3,DHCP,High,show running-config | section ip dhcp,Correct the DHCP pool network to '192.168.10.0 255.255.255.0' or update the router interface to match the subnet.
+8,PC1 can ping external IP address 8.8.8.8 but fails to resolve domain names like www.google.com.,PC1 (192.168.1.15) -> Switch -> Router -> Internet. DNS Server is at 192.168.1.200.,"PC1> ipconfig /all
+   IP Address. . . . . . . . . . . : 192.168.1.15
+   Subnet Mask . . . . . . . . . . : 255.255.255.0
+   Default Gateway . . . . . . . . : 192.168.1.1
+   DNS Server. . . . . . . . . . . : 192.168.1.250
+
+Router# show ip interface brief
+Interface              IP-Address      OK? Method Status                Protocol
+GigabitEthernet0/0     192.168.1.1     YES manual up                    up
+GigabitEthernet0/1     192.168.1.200   YES manual up                    up
+","DNS Server IP address misconfigured on client. PC1 uses 192.168.1.250, but the active DNS server interface is 192.168.1.200.",L7,DNS,Medium,ipconfig /all,Reconfigure PC1 DNS server setting to 192.168.1.200 (or correct DNS distribution on DHCP pool).
+9,Clients receive host-name resolution failures when trying to reach 'intranet.local'.,Clients -> Switch -> Router -> DNS Server (10.1.1.100).,"DNS_Server# show running-config
+ip dns server
+ip host routerA.cisco.com 10.1.1.1
+ip host routerB.cisco.com 10.1.1.2
+ip host fileserver.local 10.1.1.50
+
+Client1> nslookup intranet.local
+*** [10.1.1.100] can't find intranet.local: Non-existent domain
+",Missing DNS Host A-record on the DNS Server for 'intranet.local'.,L7,DNS,Low,nslookup domain_name,Add DNS host record on DNS server: 'ip host intranet.local 10.1.1.60'.
+10,OSPF neighbor relationships fail to establish and console logs show neighbor flapping.,RouterA (Gi0/0: 10.1.1.1/30) connected directly to RouterB (Gi0/0: 10.1.1.2/30).,"RouterA# show ip ospf
+ Routing Process ""ospf 1"" with ID 1.1.1.1
+RouterB# show ip ospf
+ Routing Process ""ospf 1"" with ID 1.1.1.1
+
+RouterA# show log
+%OSPF-4-DUP_RTRID: Duplicate router ID 1.1.1.1 detected on interface GigabitEthernet0/0
+","OSPF duplicate router ID. Both RouterA and RouterB have their OSPF router ID configured as 1.1.1.1, preventing neighbor establishment.",L3,Routing,High,show ip ospf,"Change the OSPF router ID on RouterB: 'router ospf 1', 'router-id 2.2.2.2', then 'clear ip ospf process'."
+11,OSPF neighbors are stuck in DOWN state. No routing information is exchanged.,RouterA (Gi0/0: 10.1.1.1/30) connected to RouterB (Gi0/0: 10.1.1.2/30).,"RouterA# show ip ospf interface brief
+Interface    Area            IP Address/Mask    Cost  State Nbrs(F/C)
+Gi0/0        0               10.1.1.1/30        1     DR    0/0
+
+RouterB# show ip ospf interface brief
+Interface    Area            IP Address/Mask    Cost  State Nbrs(F/C)
+Gi0/0        1               10.1.1.2/30        1     BDR   0/0
+","OSPF Area ID mismatch. RouterA's interface Gi0/0 is configured in Area 0, while RouterB's connecting interface is configured in Area 1.",L3,Routing,High,show ip ospf interface brief,Align the OSPF area configurations. Configure RouterB's Gi0/0 OSPF network statement or interface setting to use Area 0.
+12,RouterA cannot reach remote network 192.168.50.0/24 behind RouterB.,"RouterA (Gi0/0: 10.1.1.1/30) <-> RouterB (Gi0/0: 10.1.1.2/30, Gi0/1: 192.168.50.1/24).","RouterA# show ip route
+Gateway of last resort is not set
+     10.0.0.0/8 is variably subnetted, 2 subnets, 2 masks
+C       10.1.1.0/30 is directly connected, GigabitEthernet0/0
+L       10.1.1.1/32 is directly connected, GigabitEthernet0/0
+
+RouterA# show ip route 192.168.50.10
+% Network not in table
+",Missing static route or dynamic routing configuration for 192.168.50.0/24 on RouterA.,L3,Routing,Medium,show ip route,Add a static route on RouterA: 'ip route 192.168.50.0 255.255.255.0 10.1.1.2'.
+13,"Static route configured on RouterA fails to route traffic to destination, pings time out.",RouterA (Gi0/0: 10.1.1.1/24) -> RouterB (Gi0/0: 10.1.1.2/24). Destination network is 192.168.50.0/24.,"RouterA# show running-config | include ip route
+ip route 192.168.50.0 255.255.255.0 10.1.1.6
+
+RouterA# show ip route 192.168.50.0
+Routing entry for 192.168.50.0/24
+  Known via ""static"", distance 1, metric 0
+  Routing Descriptor Blocks:
+  * 10.1.1.6
+
+RouterA# show arp
+Protocol  Address          Age (min)  Hardware Addr   Type   Interface
+Internet  10.1.1.1                -   0011.2233.4455  ARPA   GigabitEthernet0/0
+Internet  10.1.1.2                5   0011.2233.abcd  ARPA   GigabitEthernet0/0
+",Static route configured with incorrect next-hop IP (10.1.1.6 instead of RouterB's IP 10.1.1.2). 10.1.1.6 is unresponsive or not present on the subnet.,L3,Routing,Medium,show running-config | include ip route,Remove incorrect route and add correct static route: 'no ip route 192.168.50.0 255.255.255.0 10.1.1.6' then 'ip route 192.168.50.0 255.255.255.0 10.1.1.2'.
+14,RouterA and RouterB run RIP but cannot exchange routing updates. Routes from RouterB are missing on RouterA.,RouterA <-> RouterB directly connected on 10.1.1.0/30 subnet.,"RouterA# show ip protocols
+Routing Protocol is ""rip""
+  Sending updates every 30 seconds
+  Default version control: send version 1, receive version 1
+  Routing for Networks:
+    10.0.0.0
+
+RouterB# show ip protocols
+Routing Protocol is ""rip""
+  Sending updates every 30 seconds
+  Default version control: send version 2, receive version 2
+  Routing for Networks:
+    10.0.0.0
+","RIP routing protocol version mismatch. RouterA uses version 1, and RouterB uses version 2. Version 1 does not support classless updates sent by Version 2, or they ignore each other's packets.",L3,Routing,Medium,show ip protocols,"Configure RIP version 2 on RouterA: 'router rip', 'version 2'."
+15,"PC1 cannot access the intranet web server (HTTP port 80), though it can ping the server's IP address.",PC1 (192.168.1.10) -> Router -> WebServer (172.16.1.100).,"Router# show access-lists
+Extended IP access list 101
+    10 deny tcp any host 172.16.1.100 eq www
+    20 deny tcp any host 172.16.1.100 eq 443
+    30 permit ip any any
+
+Router# show running-config interface GigabitEthernet0/1
+interface GigabitEthernet0/1
+ ip address 172.16.1.1 255.255.255.0
+ ip access-group 101 out
+",Access Control List (ACL 101) applied out on the server-facing interface blocks web traffic (HTTP port 80 and HTTPS port 443) destined for the server.,L4,ACL,High,show access-lists,Modify or remove the deny rules in ACL 101 if web traffic is authorized: 'no access-list 101 deny tcp any host 172.16.1.100 eq www' or remove ACL from interface.
+16,"An access list intended to permit only the management host 192.168.1.10 to SSH to the router is blocking all hosts on that subnet, or permitting everyone. SSH connectivity is inconsistent.",Management host (192.168.1.10/24) -> Router G0/0 (192.168.1.1/24).,"Router# show running-config | include access-list
+access-list 101 permit ip 192.168.1.0 255.255.255.0 any
+Router# show running-config | section line vty
+line vty 0 4
+ access-class 101 in
+ transport input ssh
+","Incorrect wildcard mask used in Cisco Access Control List. The command uses '255.255.255.0' which is a subnet mask, instead of the inverted wildcard mask '0.0.0.255' or a host wildcard '0.0.0.0' for single host.",L3,ACL,High,show running-config | include access-list,Correct the wildcard mask: 'no access-list 101' and add 'access-list 101 permit tcp host 192.168.1.10 any eq 22' or 'access-list 101 permit ip 192.168.1.0 0.0.0.255 any' depending on the policy.
+17,"After implementing an ACL to permit web browsing, users cannot resolve any URLs, but can browse using direct IP addresses.",PC1 (192.168.1.10) -> Router -> Internet. DNS server is external at 8.8.8.8.,"Router# show access-lists
+Extended IP access list 102
+    10 permit tcp any any eq www
+    20 permit tcp any any eq 443
+
+Router# show running-config interface GigabitEthernet0/1
+interface GigabitEthernet0/1
+ ip access-group 102 out
+","The implicit deny at the end of ACL 102 is blocking DNS traffic (UDP port 53), preventing host-name resolution.",L4,ACL,High,show access-lists,Permit UDP port 53 in ACL 102: add 'access-list 102 permit udp any any eq 53' to allow DNS queries.
+18,PCs in the LAN cannot access the internet. No NAT translations are recorded on the router.,LAN (192.168.1.0/24) -> Router G0/0 (LAN) & G0/1 (WAN: 203.0.113.2) -> Internet.,"Router# show running-config interface gigabitethernet 0/0
+interface GigabitEthernet0/0
+ description LAN Interface
+ ip address 192.168.1.1 255.255.255.0
+ ip nat outside
+
+Router# show running-config interface gigabitethernet 0/1
+interface GigabitEthernet0/1
+ description WAN Interface
+ ip address 203.0.113.2 255.255.255.252
+ ip nat inside
+",NAT inside/outside interfaces are reversed. GigabitEthernet0/0 (LAN) is configured as 'ip nat outside' and GigabitEthernet0/1 (WAN) is 'ip nat inside'.,L3,NAT,High,show running-config interface,"Swap the NAT designations on the interfaces: on G0/0 configure 'ip nat inside', on G0/1 configure 'ip nat outside'."
+19,"VLAN 20 hosts (192.168.20.0/24) fail to access the internet, while VLAN 10 hosts (192.168.10.0/24) are working fine. NAT translations are empty for VLAN 20.","VLAN 10 (192.168.10.0/24), VLAN 20 (192.168.20.0/24) -> Router G0/1 (WAN: 203.0.113.2).","Router# show running-config | include ip nat
+ip nat inside source list 1 interface GigabitEthernet0/1 overload
+
+Router# show running-config | include access-list 1
+access-list 1 permit 192.168.10.0 0.0.0.255
+
+Router# show ip nat translations
+Pro Inside global      Inside local       Outside local      Outside global
+tcp 203.0.113.2:1024   192.168.10.15:8080 8.8.8.8:80         8.8.8.8:80
+","The NAT access-list (ACL 1) is missing a permit statement for the VLAN 20 subnet (192.168.20.0/24), preventing their source IPs from being translated.",L3,NAT,High,show running-config | include access-list,Add a permit statement for VLAN 20 in ACL 1: 'access-list 1 permit 192.168.20.0 0.0.0.255'.
+20,"A user moved their laptop from Desk A to Desk B. Now, the network port is down, link light is amber/red, and PC shows no network connection.",PC -> Switch Port F0/5. Switch port is err-disabled.,"Switch# show interfaces fastethernet 0/5
+FastEthernet0/5 is down, line protocol is down (err-disabled)
+
+Switch# show port-security interface fastethernet 0/5
+Port Security: Enabled
+Port Status: Secure-shutdown
+Violation Mode: Shutdown
+Max Addresses: 1
+Total Addresses: 1
+Last Source Address: 0011.2233.4455
+Security Violation Count: 1
+","Port security violation on Switch port FastEthernet0/5. The user connected a device with a different MAC address (0011.2233.4455) than the secured MAC address, causing the port to enter the err-disabled shutdown state.",L2,VLAN,Medium,show port-security interface fastethernet 0/5,"Clear errdisable on the interface: enter config mode, type 'interface Fa0/5', then 'shutdown' followed by 'no shutdown'. Or adjust port security settings."
+21,RouterA and RouterB are connected directly on their G0/0 interfaces but cannot ping each other. The link lights are green.,RouterA (Gi0/0) <-> RouterB (Gi0/0). Directly connected.,"RouterA# show running-config interface gigabitethernet 0/0
+interface GigabitEthernet0/0
+ ip address 10.0.0.1 255.255.255.252
+
+RouterB# show running-config interface gigabitethernet 0/0
+interface GigabitEthernet0/0
+ ip address 10.0.0.2 255.255.255.248
+",Mismatched subnet masks on RouterA and RouterB's directly connecting link. RouterA uses /30 (255.255.255.252) while RouterB uses /29 (255.255.255.248).,L3,Routing,Medium,show running-config interface,Change RouterB's G0/0 subnet mask to 255.255.255.252 to match RouterA.
+22,Hosts on the LAN report intermittent connectivity and slow speeds. Ping response times to the gateway flap and drop packets.,LAN Switch -> Router G0/0 (192.168.1.1). Two hosts share IP 192.168.1.10.,"Router# show logging
+00:24:15: %IP-4-DUPADDR: Duplicate address 192.168.1.10 on GigabitEthernet0/0, sourced by MAC 0015.65c4.8912
+
+Router# show arp
+Protocol  Address          Age (min)  Hardware Addr   Type   Interface
+Internet  192.168.1.1             -   0011.85a3.2201  ARPA   GigabitEthernet0/0
+Internet  192.168.1.10            0   0015.65c4.8912  ARPA   GigabitEthernet0/0
+Internet  192.168.1.10            0   0022.48f1.88a2  ARPA   GigabitEthernet0/0
+",Duplicate IP address on the LAN. Two devices (MACs 0015.65c4.8912 and 0022.48f1.88a2) are configured with the same IP address 192.168.1.10.,L3,Routing,Medium,show arp,"Identify the two physical devices. Reconfigure one of the hosts to use a unique, unused IP address on the 192.168.1.0/24 subnet."
+23,Network traffic is taking a slow path (100Mbps link) instead of the fast Gigabit link. Users report slow file transfers.,Core_Switch <-> Access_Switch. Two paths: 1Gbps link and a 100Mbps redundant link.,"Core_Switch# show spanning-tree vlan 1
+Vlan 1
+  Root ID    Priority    32769
+             Address     0001.96b2.3301
+             This bridge is not the root
+
+Access_Switch# show spanning-tree vlan 1
+Vlan 1
+  Root ID    Priority    32769
+             Address     0001.1122.3344
+             This bridge is the root
+",Incorrect Spanning Tree Root Bridge election. The low-end Access Switch was elected as Root Bridge because priorities are left at default (32768+1) and it has a lower MAC address. This causes traffic to route suboptimally.,L2,VLAN,Medium,show spanning-tree vlan 1,Configure the Core_Switch to be the primary root bridge by lowering its STP priority: 'spanning-tree vlan 1 priority 4096' or 'spanning-tree vlan 1 root primary'.
+24,"The EtherChannel link between SwitchA and SwitchB is down, and ports Fa0/23 and Fa0/24 show suspended states.","SwitchA (Fa0/23, Fa0/24) <-> SwitchB (Fa0/23, Fa0/24). Channel group 1 is configured.","SwitchA# show etherchannel summary
+Flags:  D - down        P - bundled in port-channel
+        S - suspended
+Number of channel-groups in use: 1
+Group  Port-channel  Protocol    Ports
+------+-------------+-----------+-----------------------------------------------
+1      Po1(SD)         LACP      Fa0/23(D)  Fa0/24(D)
+
+SwitchB# show etherchannel summary
+Group  Port-channel  Protocol    Ports
+------+-------------+-----------+-----------------------------------------------
+1      Po1(SD)         PAgP      Fa0/23(D)  Fa0/24(D)
+","EtherChannel protocol mismatch. SwitchA is configured to use Link Aggregation Control Protocol (LACP), whereas SwitchB is configured to use Port Aggregation Protocol (PAgP).",L2,VLAN,High,show etherchannel summary,"Change the EtherChannel protocol on SwitchB to LACP by reconfiguring the channel-group command: 'no channel-group 1', then 'channel-group 1 mode active' on interfaces Fa0/23 and Fa0/24."
+25,Wireless clients in the branch office cannot see or connect to the 'Cisco_Guest' SSID.,Wireless Clients -> APs -> Wireless LAN Controller (WLC).,"WLC# show wlan summary
+Number of WLANs: 1
+WLAN ID  WLAN Profile Name    SSID                  Status
+1        Guest_Network        Cisco-Guest           Enabled
+
+Client Profile Details:
+Target SSID: Cisco_Guest
+","SSID mismatch. The WLC broadcasts the SSID as 'Cisco-Guest' (hyphen), but the clients are preconfigured or trying to connect to 'Cisco_Guest' (underscore).",L2,Wireless,Medium,show wlan summary,Correct the SSID on WLC to 'Cisco_Guest' or update client configurations to match the broadcast SSID.
+26,Wireless clients enter a looping authentication loop when attempting to connect to the corporate WLAN.,Clients -> AP -> WLC -> RADIUS/Local Authentication.,"WLC# show logging
+00:15:34: *dot1xMsgTask: %SEC-6-WPA_EXTRA_KEY_MME: WPA key message 4 validation failed for client 00:24:d7:a1:b2:c3
+00:15:34: *dot1xMsgTask: %wps_msg.c:892 - Pre-shared key mismatch detected for station 00:24:d7:a1:b2:c3
+","Wireless security password mismatch. The client is entering the incorrect WPA2 pre-shared key (PSK), causing a WPA handshake key validation failure.",L2,Wireless,Medium,show logging on WLC,Verify and enter the correct WPA2 pre-shared key on the wireless client device.
+27,PC1 in VLAN 20 cannot ping its default gateway Router subinterface G0/0.20.,"PC1 (192.168.20.10/24) -> Switch (Fa0/1 in VLAN 20, Trunk on Fa0/24) -> Router G0/0.20.","Router# show running-config interface gigabitethernet 0/0.20
+interface GigabitEthernet0/0.20
+ encapsulation dot1Q 30
+ ip address 192.168.20.1 255.255.255.0
+","Inter-VLAN Routing subinterface encapsulation mismatch. Subinterface G0/0.20 is configured to tag and receive VLAN 30 frames ('encapsulation dot1Q 30'), instead of VLAN 20.",L3,Routing,High,show running-config interface gigabitethernet 0/0.20,"Change encapsulation tag to 20: under interface G0/0.20, configure 'encapsulation dot1Q 20'."
+28,"Console logs show HSRP IP address duplicate warnings, and hosts suffer from routing packet drops.",RouterA (192.168.1.2) & RouterB (192.168.1.3) run HSRP for virtual IP 192.168.1.254.,"RouterA# show standby brief
+Interface   Grp  Pri P State    Active addr     Standby addr    Group addr
+Gi0/0       10   100   Active   local           unknown         192.168.1.254
+
+RouterB# show standby brief
+Interface   Grp  Pri P State    Active addr     Standby addr    Group addr
+Gi0/0       20   100   Active   local           unknown         192.168.1.254
+","HSRP Group Mismatch. RouterA is configured for standby group 10, and RouterB is in standby group 20. They do not exchange HSRP hello messages for the same group, causing both to assume the Active role.",L3,Gateway,High,show standby brief,"Align the standby group number: configure RouterB's standby group to match RouterA: under interface G0/0, type 'no standby 20 ip...', then 'standby 10 ip 192.168.1.254'."
+29,Users cannot establish secure HTTPS connections to internal web portals. Browsers show SSL certificate expired/invalid errors.,Clients -> Network -> Web Server. Clock is desynchronized.,"Router# show clock
+00:04:12.342 UTC Mon Jan 1 1993
+
+Router# show ntp status
+Clock is unsynchronized, stratum 16, no reference clock
+nominal freq is 250.0000 Hz, actual freq is 250.0000 Hz, precision is 2**18
+","NTP system clock desynchronization. The router's system clock is set to 1993, causing validity checks on modern SSL/TLS certificates to fail.",L7,DNS,Low,show ntp status,Configure correct NTP server address: 'ntp server 216.58.216.164' or manually set the system clock using 'clock set'.
+30,VLANs created on SwitchA (VTP Server) are not replicating to SwitchB (VTP Client). Ports on SwitchB remain unassigned.,SwitchA (VTP Server) <-> SwitchB (VTP Client) via Trunk.,"SwitchA# show vtp status
+VTP Version                     : 2
+VTP Operating Mode              : Server
+VTP Domain Name                 : CISCO
+
+SwitchB# show vtp status
+VTP Operating Mode              : Client
+VTP Domain Name                 : cisco
+","VTP Domain Name mismatch. VTP is case-sensitive. SwitchA uses 'CISCO' (uppercase), whereas SwitchB is configured with 'cisco' (lowercase).",L2,VLAN,Medium,show vtp status,Reconfigure the VTP Domain name on SwitchB to match the server: 'vtp domain CISCO'.
