@@ -1,5 +1,7 @@
 # NetSage AI: Cisco Lab Troubleshooter & Verification Dashboard
 
+[![Deploy to Render](https://render.com/images/deploy-to-render.svg)](https://render.com/deploy?repo=https://github.com/paruchurigeetha/cisco-netsage-ai)
+
 **NetSage AI** is an AI-assisted network troubleshooting assistant designed for Cisco-style lab networks (such as Packet Tracer or real enterprise topologies). It helps junior engineers connect symptoms to root causes by combining **deterministic rule-based validation checks (Python)** with **generative semantic reasoning (LLM)**, while enforcing a **Human-in-the-Loop (Safety Rule)** review before implementing configuration fixes.
 
 This project was built as a submission package for the **Cisco Internship**.
@@ -9,13 +11,15 @@ This project was built as a submission package for the **Cisco Internship**.
 ## Key Features
 
 1. **Vibrant Dark-Theme Dashboard**: A premium, state-of-the-art visual dashboard displaying real-time statistics of cases (total, concepts, OSI layers, severity, and AI vs. Human agreement rates).
-2. **Interactive Diagnostics Lab**: A live console showing:
+2. **Interactive Network Topology Graph**: A live canvas rendering device layouts (Routers, Switches, PCs, Servers) that dynamically flashes in red and indicates link failures for config mismatches.
+3. **AI Council Multi-Agent Consensus Debate**: Simulates specialized agent roles (Infrastructure, Security, Services) debating configurations to produce a combined consensus diagnosis.
+4. **Interactive Diagnostics Lab**: A live console showing:
    - Cisco CLI `show` command outputs for 30 distinct real-world failure cases.
    - **Deterministic Python Rule Checker**: Runs instant tests on subnetting, native VLAN tags, interface states, access modes, duplicate IPs, OSPF, and HSRP settings.
    - **Gemini AI Diagnosis Integration**: Automatically drafts Root Cause, Confidence, Evidence quotes, Next Commands, and CLI Fix Steps (supports live API keys or built-in offline mock responses).
-3. **Interactive Human Oversight (Safety Rule)**: Allows engineers to Accept, Edit (interactively modifying fields), or Reject AI answers, which updates the database and metrics in real-time.
-4. **Programmatic Excel Export**: Automatically updates and exports a formatted Excel spreadsheet (`dashboard.xlsx`) complete with embedded charts, metrics tables, and case logs.
-5. **Responsible AI Log**: Documents at least 5 complex edge cases where AI hallucinated or made logical omissions, explaining why human oversight prevented network issues.
+5. **Interactive Human Oversight (Safety Rule)**: Allows engineers to Accept, Edit (interactively modifying fields), or Reject AI answers, which updates the database and metrics in real-time.
+6. **Programmatic Excel Export**: Automatically updates and exports a formatted Excel spreadsheet (`dashboard.xlsx`) complete with embedded charts, metrics tables, and case logs.
+7. **Responsible AI Log**: Documents at least 5 complex edge cases where AI hallucinated or made logical omissions, explaining why human oversight prevented network issues.
 
 ---
 
