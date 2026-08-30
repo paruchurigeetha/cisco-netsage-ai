@@ -214,6 +214,17 @@
                                 <h3 id="active-case-symptom">PC1 cannot ping PC2 in VLAN 10 across switches.</h3>
                             </div>
 
+                            <!-- Live Interactive Network Topology Graph -->
+                            <div class="card terminal-card" style="margin-bottom: 20px;">
+                                <div class="card-header">
+                                    <h4><i class="fa-solid fa-diagram-project"></i> Live Interactive Network Topology Graph</h4>
+                                    <span class="badge badge-success" id="topology-health"><i class="fa-solid fa-circle-check"></i> Link States Operational</span>
+                                </div>
+                                <div style="background: #0b1120; padding: 15px; display: flex; justify-content: center; align-items: center; min-height: 240px; position: relative; border-radius: 0 0 12px 12px; overflow: hidden; border-top: 1px solid rgba(255,255,255,0.05);">
+                                    <canvas id="topology-canvas" width="800" height="220" style="width: 100%; max-width: 800px; height: auto; display: block;"></canvas>
+                                </div>
+                            </div>
+
                             <!-- Network Config and Evidence Panel -->
                             <div class="grid-2">
                                 <!-- Topology Note -->
@@ -239,9 +250,40 @@ SwitchA# show interfaces trunk...
                             </div>
 
                             <!-- Diagnostic Trigger Buttons -->
-                            <div class="action-bar">
+                            <div class="action-bar" style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
                                 <button class="btn btn-secondary" id="btn-run-rule"><i class="fa-solid fa-microchip"></i> Run Python Rule Checker</button>
-                                <button class="btn btn-primary" id="btn-run-ai"><i class="fa-solid fa-brain"></i> Diagnose with NetSage AI</button>
+                                
+                                <div class="agent-mode-selector" style="display: flex; background: rgba(255, 255, 255, 0.05); padding: 4px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.08); gap: 4px;">
+                                    <button class="btn-toggle active" id="btn-mode-single" style="border: none; background: #00abec; color: #fff; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 500; transition: all 0.2s;" onclick="setAgentMode('single')">Single Agent</button>
+                                    <button class="btn-toggle" id="btn-mode-council" style="border: none; background: transparent; color: #94a3b8; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 500; transition: all 0.2s;" onclick="setAgentMode('council')">AI Council Debate</button>
+                                </div>
+                                
+                                <button class="btn btn-primary" id="btn-run-ai" style="margin-left: auto;"><i class="fa-solid fa-brain"></i> Diagnose with NetSage AI</button>
+                            </div>
+
+                            <!-- Multi-Agent Debate Logs Panel (Hidden by default) -->
+                            <div class="card output-card hidden" id="ai-council-debate-panel" style="border-left: 4px solid #8b5cf6; margin-bottom: 20px;">
+                                <div class="card-header" style="background: rgba(139, 92, 246, 0.08);">
+                                    <h4><i class="fa-solid fa-people-group"></i> AI Council Multi-Agent Consensus Debate</h4>
+                                    <span class="badge badge-warning" id="debate-status">Simulating Expert Analysis...</span>
+                                </div>
+                                <div class="debate-container" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; padding: 15px; background: rgba(15, 23, 42, 0.4);">
+                                    <div class="agent-box card" style="background: rgba(30, 41, 59, 0.4); padding: 12px; border: 1px solid rgba(255,255,255,0.05); border-top: 3px solid #60a5fa; border-radius: 8px;">
+                                        <h5 style="color: #60a5fa; margin-bottom: 8px; font-weight: 600;"><i class="fa-solid fa-server"></i> Infra Agent (L2/L3)</h5>
+                                        <p id="agent-infra-log" style="font-size: 0.82rem; color: #cbd5e1; font-family: 'Fira Code', monospace; line-height: 1.4; min-height: 90px; margin: 0;">Waiting...</p>
+                                    </div>
+                                    <div class="agent-box card" style="background: rgba(30, 41, 59, 0.4); padding: 12px; border: 1px solid rgba(255,255,255,0.05); border-top: 3px solid #f472b6; border-radius: 8px;">
+                                        <h5 style="color: #f472b6; margin-bottom: 8px; font-weight: 600;"><i class="fa-solid fa-shield-halved"></i> Security Agent (ACL/NAT)</h5>
+                                        <p id="agent-security-log" style="font-size: 0.82rem; color: #cbd5e1; font-family: 'Fira Code', monospace; line-height: 1.4; min-height: 90px; margin: 0;">Waiting...</p>
+                                    </div>
+                                    <div class="agent-box card" style="background: rgba(30, 41, 59, 0.4); padding: 12px; border: 1px solid rgba(255,255,255,0.05); border-top: 3px solid #34d399; border-radius: 8px;">
+                                        <h5 style="color: #34d399; margin-bottom: 8px; font-weight: 600;"><i class="fa-solid fa-route"></i> Services Agent (OSPF/RIP)</h5>
+                                        <p id="agent-services-log" style="font-size: 0.82rem; color: #cbd5e1; font-family: 'Fira Code', monospace; line-height: 1.4; min-height: 90px; margin: 0;">Waiting...</p>
+                                    </div>
+                                </div>
+                                <div class="consensus-banner" style="background: rgba(139, 92, 246, 0.12); padding: 12px 15px; border-top: 1px solid rgba(139, 92, 246, 0.2); font-size: 0.88rem; color: #e9d5ff; border-radius: 0 0 8px 8px;">
+                                    <i class="fa-solid fa-circle-check" style="color: #a78bfa; margin-right: 6px;"></i> <strong style="color: #f3e8ff;">Consensus Verdict:</strong> <span id="debate-consensus-summary">Analyzing opinions...</span>
+                                </div>
                             </div>
 
                             <!-- Rule Checker Output Panel -->

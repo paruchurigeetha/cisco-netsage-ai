@@ -5,6 +5,7 @@ let casesList = [];
 let activeCase = null;
 let activeCaseDiagnosis = null; // Stores AI output for active case
 let charts = {};
+let agentMode = 'single';
 
 // DOM Elements
 const elements = {
@@ -260,6 +261,9 @@ async function selectCase(id) {
         elements.emptyCaseState.classList.add('hidden');
         elements.activeCaseConsole.classList.remove('hidden');
         
+        // Draw Topology Graph
+        drawTopologyGraph(activeCase.id);
+        
     } catch (error) {
         console.error("Error loading case", error);
         showToast("Error loading case details", "error");
@@ -338,7 +342,41 @@ function setupWorkspaceListeners() {
     elements.btnRunAI.addEventListener('click', async () => {
         if (!activeCase) return;
         elements.btnRunAI.disabled = true;
-        elements.btnRunAI.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Reasoning...';
+        
+        const debatePanel = document.getElementById('ai-council-debate-panel');
+        
+        if (agentMode === 'council') {
+            debatePanel.classList.remove('hidden');
+            document.getElementById('debate-status').textContent = "Running Multi-Agent Negotiation...";
+            document.getElementById('debate-status').className = "badge badge-warning";
+            document.getElementById('agent-infra-log').textContent = "Analyzing topology...";
+            document.getElementById('agent-security-log').textContent = "Pending Infra Agent...";
+            document.getElementById('agent-services-log').textContent = "Pending Security Agent...";
+            document.getElementById('debate-consensus-summary').textContent = "Waiting for agents...";
+            elements.aiDiagnosisPanel.classList.add('hidden');
+            
+            elements.btnRunAI.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Consensual Debate...';
+            
+            const logs = generateDebateLogs(activeCase);
+            
+            await new Promise(r => setTimeout(r, 600));
+            document.getElementById('agent-infra-log').innerHTML = logs.infraLog.replace(/\n/g, '<br>');
+            document.getElementById('agent-security-log').textContent = "Analyzing ACLs and policies...";
+            
+            await new Promise(r => setTimeout(r, 600));
+            document.getElementById('agent-security-log').innerHTML = logs.securityLog.replace(/\n/g, '<br>');
+            document.getElementById('agent-services-log').textContent = "Analyzing routing parameters...";
+            
+            await new Promise(r => setTimeout(r, 600));
+            document.getElementById('agent-services-log').innerHTML = logs.servicesLog.replace(/\n/g, '<br>');
+            document.getElementById('debate-status').textContent = "Consensus Reached!";
+            document.getElementById('debate-status').className = "badge badge-success";
+            document.getElementById('debate-consensus-summary').textContent = logs.consensus;
+        } else {
+            debatePanel.classList.add('hidden');
+        }
+        
+        elements.btnRunAI.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Finalizing diagnosis...';
         
         try {
             const apiKey = elements.geminiKeyInput.value.trim();
@@ -732,4 +770,308 @@ function showToast(message, type = 'success') {
     setTimeout(() => {
         elements.toast.classList.add('hidden');
     }, 3000);
+}
+
+// 8. Toggle Agent Mode
+window.setAgentMode = function(mode) {
+    agentMode = mode;
+    const btnSingle = document.getElementById('btn-mode-single');
+    const btnCouncil = document.getElementById('btn-mode-council');
+    
+    if (mode === 'single') {
+        btnSingle.style.background = '#00abec';
+        btnSingle.style.color = '#fff';
+        btnCouncil.style.background = 'transparent';
+        btnCouncil.style.color = '#94a3b8';
+    } else {
+        btnCouncil.style.background = '#8b5cf6';
+        btnCouncil.style.color = '#fff';
+        btnSingle.style.background = 'transparent';
+        btnSingle.style.color = '#94a3b8';
+    }
+}
+
+// 9. Interactive Canvas Network Graph Renderer
+function drawTopologyGraph(caseId) {
+    const canvas = document.getElementById('topology-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    
+    // Clear canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Set styles
+    ctx.lineWidth = 3;
+    ctx.font = "bold 12px 'Outfit', sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    
+    // Node definitions
+    let nodes = [];
+    let links = [];
+    
+    // Define layout based on Concept Tag
+    const concept = activeCase ? activeCase.concept : "VLAN";
+    const cid = activeCase ? activeCase.id : 1;
+    
+    if (cid === 1 || cid === 3 || cid === 24 || cid === 30) {
+        // Switch to Switch Trunk Layout
+        nodes = [
+            { id: 'PC1', label: 'PC1', x: 150, y: 110, type: 'pc', info: '192.168.10.10' },
+            { id: 'SW1', label: 'SwitchA', x: 300, y: 110, type: 'switch', info: 'Trunk' },
+            { id: 'SW2', label: 'SwitchB', x: 500, y: 110, type: 'switch', info: 'Trunk' },
+            { id: 'PC2', label: 'PC2', x: 650, y: 110, type: 'pc', info: '192.168.10.20' }
+        ];
+        links = [
+            { from: 'PC1', to: 'SW1', status: 'ok' },
+            { from: 'SW1', to: 'SW2', status: (cid === 1 || cid === 3 || cid === 24) ? 'fault' : 'ok', label: 'Trunk Link' },
+            { from: 'SW2', to: 'PC2', status: 'ok' }
+        ];
+        if (cid === 30) {
+            nodes[2].status = 'fault'; // VTP replica fault
+        }
+    } else if (cid === 2 || cid === 20 || cid === 23) {
+        // Single Switch Access Layout
+        nodes = [
+            { id: 'PC1', label: 'PC1', x: 200, y: 110, type: 'pc', info: 'VLAN 10' },
+            { id: 'SW1', label: 'SwitchA', x: 400, y: 110, type: 'switch', info: 'Core' },
+            { id: 'GW', label: 'Router', x: 600, y: 110, type: 'router', info: '192.168.10.1' }
+        ];
+        links = [
+            { from: 'PC1', to: 'SW1', status: (cid === 2 || cid === 20) ? 'fault' : 'ok', label: 'Access Port' },
+            { from: 'SW1', to: 'GW', status: 'ok' }
+        ];
+        if (cid === 23) {
+            nodes[1].status = 'fault'; // STP root bridge mismatch
+        }
+    } else if (cid === 4 || cid === 5 || cid === 6 || cid === 7 || cid === 27) {
+        // Router-on-a-stick / Gateway Layout
+        nodes = [
+            { id: 'PC1', label: 'PC1', x: 150, y: 110, type: 'pc', info: 'VLAN 10' },
+            { id: 'SW1', label: 'SwitchA', x: 350, y: 110, type: 'switch', info: 'Trunk' },
+            { id: 'RT1', label: 'Router', x: 550, y: 110, type: 'router', info: 'Gateway' },
+            { id: 'DHCP', label: 'DHCP Srv', x: 700, y: 110, type: 'server', info: '10.0.0.5' }
+        ];
+        links = [
+            { from: 'PC1', to: 'SW1', status: cid === 4 ? 'fault' : 'ok' },
+            { from: 'SW1', to: 'RT1', status: (cid === 5 || cid === 27) ? 'fault' : 'ok', label: 'Trunk' },
+            { from: 'RT1', to: 'DHCP', status: cid === 6 ? 'fault' : 'ok' }
+        ];
+        if (cid === 7) {
+            nodes[2].status = 'fault';
+        }
+    } else if (cid === 10 || cid === 11 || cid === 12 || cid === 13 || cid === 14 || cid === 21 || cid === 28) {
+        // Router point-to-point layout
+        nodes = [
+            { id: 'PC1', label: 'LAN-A', x: 150, y: 110, type: 'pc', info: 'Subnet A' },
+            { id: 'RT1', label: 'RouterA', x: 350, y: 110, type: 'router', info: 'OSPF/RIP' },
+            { id: 'RT2', label: 'RouterB', x: 550, y: 110, type: 'router', info: 'OSPF/RIP' },
+            { id: 'PC2', label: 'LAN-B', x: 700, y: 110, type: 'pc', info: 'Subnet B' }
+        ];
+        links = [
+            { from: 'PC1', to: 'RT1', status: 'ok' },
+            { from: 'RT1', to: 'RT2', status: (cid === 10 || cid === 11 || cid === 21 || cid === 28) ? 'fault' : 'ok', label: 'WAN Link' },
+            { from: 'RT2', to: 'PC2', status: cid === 12 || cid === 13 ? 'fault' : 'ok' }
+        ];
+    } else if (cid === 15 || cid === 16 || cid === 17 || cid === 18 || cid === 19 || cid === 22) {
+        // ACL, NAT & Gateway Server Layout
+        nodes = [
+            { id: 'PC1', label: 'LAN Host', x: 150, y: 110, type: 'pc', info: 'Client' },
+            { id: 'SW1', label: 'Switch', x: 320, y: 110, type: 'switch' },
+            { id: 'RT1', label: 'Router', x: 480, y: 110, type: 'router', info: 'NAT/ACL' },
+            { id: 'SRV1', label: 'Web Server', x: 680, y: 110, type: 'server', info: '172.16.1.100' }
+        ];
+        links = [
+            { from: 'PC1', to: 'SW1', status: cid === 22 ? 'fault' : 'ok' },
+            { from: 'SW1', to: 'RT1', status: 'ok' },
+            { from: 'RT1', to: 'SRV1', status: (cid >= 15 && cid <= 19) ? 'fault' : 'ok', label: 'WAN' }
+        ];
+    } else if (cid === 25 || cid === 26) {
+        // Wireless Layout
+        nodes = [
+            { id: 'PC1', label: 'Laptop', x: 150, y: 110, type: 'pc', info: 'Wi-Fi Client' },
+            { id: 'AP1', label: 'AP-Branch', x: 350, y: 110, type: 'switch', info: 'SSID' },
+            { id: 'WLC', label: 'WLC Controller', x: 550, y: 110, type: 'router' },
+            { id: 'GW', label: 'Gateway', x: 700, y: 110, type: 'router' }
+        ];
+        links = [
+            { from: 'PC1', to: 'AP1', status: 'fault', label: 'Wireless Link' },
+            { from: 'AP1', to: 'WLC', status: 'ok' },
+            { from: 'WLC', to: 'GW', status: 'ok' }
+        ];
+    } else {
+        // Default generic layout (Case 8, 9, 29, DNS/NTP issues)
+        nodes = [
+            { id: 'PC1', label: 'PC1', x: 150, y: 110, type: 'pc', info: 'Client' },
+            { id: 'SW1', label: 'Switch', x: 350, y: 110, type: 'switch' },
+            { id: 'GW', label: 'Router', x: 550, y: 110, type: 'router' },
+            { id: 'SRV', label: 'NTP/DNS Server', x: 700, y: 110, type: 'server', info: 'Time/DNS' }
+        ];
+        links = [
+            { from: 'PC1', to: 'SW1', status: cid === 8 ? 'fault' : 'ok' },
+            { from: 'SW1', to: 'GW', status: 'ok' },
+            { from: 'GW', to: 'SRV', status: (cid === 9 || cid === 29) ? 'fault' : 'ok' }
+        ];
+    }
+    
+    // Draw links
+    links.forEach(l => {
+        const fromNode = nodes.find(n => n.id === l.from);
+        const toNode = nodes.find(n => n.id === l.to);
+        if (!fromNode || !toNode) return;
+        
+        ctx.beginPath();
+        ctx.moveTo(fromNode.x, fromNode.y);
+        ctx.lineTo(toNode.x, toNode.y);
+        
+        if (l.status === 'fault') {
+            ctx.strokeStyle = '#ef4444';
+            ctx.setLineDash([6, 4]);
+            
+            // Draw caution circle
+            const midX = (fromNode.x + toNode.x) / 2;
+            const midY = (fromNode.y + toNode.y) / 2;
+            ctx.fillStyle = '#f59e0b';
+            ctx.beginPath();
+            ctx.arc(midX, midY - 14, 8, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.fillStyle = '#0f172a';
+            ctx.font = "bold 10px 'Outfit', sans-serif";
+            ctx.fillText("!", midX, midY - 14);
+        } else {
+            ctx.strokeStyle = '#10b981';
+            ctx.setLineDash([]);
+        }
+        ctx.stroke();
+        
+        if (l.label) {
+            const midX = (fromNode.x + toNode.x) / 2;
+            const midY = (fromNode.y + toNode.y) / 2;
+            ctx.fillStyle = '#64748b';
+            ctx.font = "9px 'Outfit', sans-serif";
+            ctx.fillText(l.label, midX, midY + 12);
+        }
+    });
+    
+    ctx.setLineDash([]);
+    
+    // Draw nodes
+    nodes.forEach(n => {
+        let bgGradient = ctx.createRadialGradient(n.x, n.y, 4, n.x, n.y, 22);
+        
+        if (n.status === 'fault') {
+            bgGradient.addColorStop(0, '#fca5a5');
+            bgGradient.addColorStop(1, '#ef4444');
+            ctx.strokeStyle = '#ef4444';
+        } else {
+            if (n.type === 'router') {
+                bgGradient.addColorStop(0, '#60a5fa');
+                bgGradient.addColorStop(1, '#1d4ed8');
+                ctx.strokeStyle = '#3b82f6';
+            } else if (n.type === 'switch') {
+                bgGradient.addColorStop(0, '#a78bfa');
+                bgGradient.addColorStop(1, '#6d28d9');
+                ctx.strokeStyle = '#8b5cf6';
+            } else if (n.type === 'server') {
+                bgGradient.addColorStop(0, '#f472b6');
+                bgGradient.addColorStop(1, '#be185d');
+                ctx.strokeStyle = '#ec4899';
+            } else {
+                bgGradient.addColorStop(0, '#34d399');
+                bgGradient.addColorStop(1, '#047857');
+                ctx.strokeStyle = '#10b981';
+            }
+        }
+        
+        ctx.fillStyle = bgGradient;
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, 20, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.stroke();
+        
+        // Node labels
+        ctx.fillStyle = '#ffffff';
+        ctx.font = "bold 10px 'Fira Code', monospace";
+        let iconTxt = "PC";
+        if (n.type === 'router') iconTxt = "R";
+        else if (n.type === 'switch') iconTxt = "SW";
+        else if (n.type === 'server') iconTxt = "SRV";
+        ctx.fillText(iconTxt, n.x, n.y);
+        
+        ctx.fillStyle = '#f1f5f9';
+        ctx.font = "bold 11px 'Outfit', sans-serif";
+        ctx.fillText(n.label, n.x, n.y + 32);
+        
+        if (n.info) {
+            ctx.fillStyle = '#94a3b8';
+            ctx.font = "9px 'Fira Code', monospace";
+            ctx.fillText(n.info, n.x, n.y + 43);
+        }
+    });
+    
+    const healthBadge = document.getElementById('topology-health');
+    const hasFault = links.some(l => l.status === 'fault') || nodes.some(n => n.status === 'fault');
+    if (hasFault) {
+        healthBadge.className = 'badge badge-danger';
+        healthBadge.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> Link Anomalies Detected';
+    } else {
+        healthBadge.className = 'badge badge-success';
+        healthBadge.innerHTML = '<i class="fa-solid fa-circle-check"></i> Link States Operational';
+    }
+}
+
+// 10. Generate Debate Logs for AI Council Debate Mode
+function generateDebateLogs(caseObj) {
+    const concept = caseObj.concept;
+    const cid = caseObj.id;
+    const expected = caseObj.expected_fault;
+    
+    let infraLog = "";
+    let securityLog = "";
+    let servicesLog = "";
+    let consensus = "";
+    
+    if (concept === 'VLAN') {
+        infraLog = `[INFO] Interface analysis active.<br>- Flagged: trunk interfaces configured on port Fa0/24.<br>- Mismatch: ${expected}.<br>- Recommendation: Set trunk parameters matching on both peers.`;
+        securityLog = `[PASS] Security audit complete.<br>- No ACL blockages found on Fa0/24.<br>- Port security is not active.<br>- No Layer 4 blocking filters detected.`;
+        servicesLog = `[PASS] No logical network layer configurations observed.<br>- VTP / STP state matches standard parameters.<br>- Pure Layer 2 encapsulation conflict.`;
+        consensus = `Native VLAN or switchport trunk mode mismatch identified on link. Aligning parameters in global config mode resolves the issue.`;
+    } else if (concept === 'Gateway') {
+        infraLog = `[INFO] Physical link checks.<br>- Interfaces: G0/0 states verified.<br>- Subinterfaces: checking tags.<br>- Finding: G0/0.10 is shut down or gateway IP mismatch on host.`;
+        securityLog = `[PASS] Checked ACL definitions.<br>- Interface does not filter traffic on local gateway.<br>- Outside security bounds.`;
+        servicesLog = `[WARN] Gateway IP status check.<br>- Found mismatch: ${expected}.<br>- Ping fails due to invalid gateway parameter on client.`;
+        consensus = `Gateway router IP parameters or subinterface states must be aligned. Bring up subinterface and match client gateway configuration.`;
+    } else if (concept === 'DHCP') {
+        infraLog = `[INFO] Interface helper checks.<br>- Checking broadcast boundaries.<br>- Finding: helper address missing on local subinterface.`;
+        securityLog = `[PASS] No blocking rules on port 67/68.<br>- Broadcast traffic reaches router subinterface but isn't forwarded.`;
+        servicesLog = `[WARN] DHCP Server Pool check.<br>- Mismatched subnet configurations or helper-address parameter: ${expected}.`;
+        consensus = `DHCP requests are failing to traverse subnets. Helper-address must be configured or pool network parameters matched to gateway IP.`;
+    } else if (concept === 'DNS') {
+        infraLog = `[PASS] Checked physical and logical interfaces.<br>- Connectivity to DNS server is healthy (ping works).`;
+        securityLog = `[INFO] Auditing DNS access policy.<br>- UDP port 53 is open.<br>- Finding: DNS server address misconfigured: ${expected}.`;
+        servicesLog = `[WARN] DNS record resolution failure.<br>- Record A query returned empty response. Intranet hostname record missing on server.`;
+        consensus = `DNS name resolution is blocked by incorrect resolver IP on client or missing Host A-record in the DNS database.`;
+    } else if (concept === 'Routing') {
+        infraLog = `[WARN] Checked link subnets.<br>- Duplicate router ID: ${expected}.<br>- OSPF neighbor flaps or area ID mismatch.`;
+        securityLog = `[PASS] ACL rules do not block OSPF packet exchanges (multicast 224.0.0.5/6).`;
+        servicesLog = `[INFO] OSPF state machine halted.<br>- Stuck in DOWN state.<br>- Area mismatch or duplicate ID prevents neighbor adjacency.`;
+        consensus = `Routing protocol negotiation failed. Correct OSPF Area IDs, change duplicate router-id, or correct next-hop IP configurations.`;
+    } else if (concept === 'ACL') {
+        infraLog = `[PASS] Interface Layer 3 subnets are correctly configured. Pings succeed.`;
+        securityLog = `[WARN] ACL rule audit active.<br>- Found rule: ${expected}.<br>- Port 80/443 traffic explicitly denied or wildcard mask reversed.`;
+        servicesLog = `[PASS] Routing table holds valid paths to server. Problem is isolated at L4.`;
+        consensus = `Security policy (ACL) is blocking transport layer packets or using incorrect wildcard masks. Adjust access-list statements.`;
+    } else if (concept === 'NAT') {
+        infraLog = `[PASS] Inside and outside interfaces checked. Link addresses valid.`;
+        securityLog = `[WARN] NAT translation checks.<br>- Inside/Outside statements reversed, or NAT ACL matches wrong subnets: ${expected}.`;
+        servicesLog = `[PASS] Default route exists. Routing table accepts translations.`;
+        consensus = `NAT engine configuration error. Correct inside/outside declarations on interfaces or expand the NAT pool permit ACL.`;
+    } else {
+        infraLog = `[INFO] Checking interfaces: all states active.`;
+        securityLog = `[PASS] No security filter conflicts.`;
+        servicesLog = `[WARN] Services layer exception detected: ${expected}.`;
+        consensus = `Service parameter mismatch detected. Check and re-align configurations.`;
+    }
+    
+    return { infraLog, securityLog, servicesLog, consensus };
 }
