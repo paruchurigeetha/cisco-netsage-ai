@@ -66,6 +66,8 @@ Network configuration changes can disrupt business operations if applied blindly
                   └──────────────────────────────┘
 ```
 
+* **Interactive Network Topology Graph**: Built a custom HTML5 canvas graph renderer that parses active topologies and dynamically renders network nodes (Routers, Switches, PCs, Servers) with real-time status and flashing/dashed anomaly links indicating the exact failure path.
+* **AI Council Debate Consensus Engine**: Implemented an advanced multi-agent consensus pattern where three distinct expert systems (Infra Agent, Security Agent, Services Agent) independently review the telemetry, logging specialized assessments before negotiating a final consensus diagnostic package.
 * **Frontend**: HTML5, Vanilla CSS3 (Custom Dark-themed Glassmorphism UI), Javascript (ES6), and **Chart.js** (for real-time metrics rendering).
 * **Backend**: **Flask** (Python Web Framework) providing REST API endpoints.
 * **Integrations**: Standard HTTP request handling (via Python standard library `urllib`) connecting to **Google Gemini API** (`gemini-1.5-flash`) for real-time AI diagnoses.
